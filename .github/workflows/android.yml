@@ -10,50 +10,46 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout (no files required)
+      # repo checkout (no other files required)
+      - name: Checkout
         uses: actions/checkout@v4
 
+      # Java 17 for Android Gradle Plugin 8.x
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
 
+      # Android SDK + accept licenses
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
 
+      # Install explicit platform + build-tools (shows progress in logs)
       - name: Install Android platform & build-tools (34)
         run: |
           sdkmanager --install "platforms;android-34" "build-tools;34.0.0" "platform-tools"
           yes | sdkmanager --licenses
 
-      - name: Create Android project from scratch
+      # ---------- CREATE PROJECT FROM SCRATCH ----------
+      - name: Create Android WebView project (SinopecXN_WebView)
         run: |
           set -eux
           PROJECT="SinopecXN_WebView"
-          mkdir -p "$PROJECT"/{app/src/main/{res/{layout,values,xml,drawable,mipmap-anydpi-v26},java/com/sinopec/xn},.github/workflows}
-
-          # settings.gradle
+          mkdir -p "$PROJECT"/{app/src/main/{res/{layout,values,xml,drawable,mipmap-anydpi-v26},java/com/sinopec/xn}}
+          
           cat > "$PROJECT/settings.gradle" <<'EOF'
           pluginManagement {
-              repositories {
-                  google()
-                  mavenCentral()
-                  gradlePluginPortal()
-              }
+              repositories { google(); mavenCentral(); gradlePluginPortal() }
           }
           dependencyResolutionManagement {
               repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
-              repositories {
-                  google()
-                  mavenCentral()
-              }
+              repositories { google(); mavenCentral() }
           }
           rootProject.name = "SinopecXN_WebView"
           include(":app")
           EOF
 
-          # Top-level build.gradle.kts
           cat > "$PROJECT/build.gradle.kts" <<'EOF'
           plugins {
               id("com.android.application") version "8.5.2" apply false
@@ -61,7 +57,6 @@ jobs:
           }
           EOF
 
-          # gradle.properties
           cat > "$PROJECT/gradle.properties" <<'EOF'
           org.gradle.jvmargs=-Xmx4096m -Dkotlin.daemon.jvm.options=-Xmx2048m
           android.useAndroidX=true
@@ -69,7 +64,6 @@ jobs:
           kotlin.code.style=official
           EOF
 
-          # app/build.gradle.kts
           cat > "$PROJECT/app/build.gradle.kts" <<'EOF'
           plugins {
               id("com.android.application")
@@ -91,27 +85,18 @@ jobs:
               buildTypes {
                   release {
                       isMinifyEnabled = false
-                      proguardFiles(
-                          getDefaultProguardFile("proguard-android-optimize.txt"),
-                          "proguard-rules.pro"
-                      )
+                      proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
                   }
-                  debug {
-                      isMinifyEnabled = false
-                  }
+                  debug { isMinifyEnabled = false }
               }
 
               compileOptions {
                   sourceCompatibility = JavaVersion.VERSION_17
                   targetCompatibility = JavaVersion.VERSION_17
               }
-              kotlinOptions {
-                  jvmTarget = "17"
-              }
+              kotlinOptions { jvmTarget = "17" }
 
-              packaging {
-                  resources.excludes.add("META-INF/*")
-              }
+              packaging { resources.excludes.add("META-INF/*") }
           }
 
           dependencies {
@@ -121,17 +106,14 @@ jobs:
           }
           EOF
 
-          # proguard
           echo "## Keep WebView defaults" > "$PROJECT/app/proguard-rules.pro"
 
-          # AndroidManifest
           cat > "$PROJECT/app/src/main/AndroidManifest.xml" <<'EOF'
           <?xml version="1.0" encoding="utf-8"?>
           <manifest xmlns:android="http://schemas.android.com/apk/res/android">
               <uses-permission android:name="android.permission.INTERNET" />
               <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="28" />
               <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
-
               <application
                   android:allowBackup="true"
                   android:icon="@mipmap/ic_launcher"
@@ -140,7 +122,6 @@ jobs:
                   android:supportsRtl="true"
                   android:theme="@style/Theme.MaterialComponents.DayNight.NoActionBar"
                   android:networkSecurityConfig="@xml/network_security_config">
-
                   <activity
                       android:name=".MainActivity"
                       android:exported="true"
@@ -155,7 +136,6 @@ jobs:
           </manifest>
           EOF
 
-          # resources
           cat > "$PROJECT/app/src/main/res/values/strings.xml" <<'EOF'
           <resources>
               <string name="app_name">Sinopec XN</string>
@@ -202,7 +182,7 @@ jobs:
               android:width="108dp" android:height="108dp"
               android:viewportWidth="108" android:viewportHeight="108">
               <path android:fillColor="@color/ic_fg"
-                  android:pathData="M54,18 L78,42 L63,42 L63,90 L45,90 L45,42 L30,42 Z"/>
+                    android:pathData="M54,18 L78,42 L63,42 L63,90 L45,90 L45,42 L30,42 Z"/>
           </vector>
           EOF
 
@@ -217,7 +197,6 @@ jobs:
           cp "$PROJECT/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml" \
              "$PROJECT/app/src/main/res/mipmap-anydpi-v26/ic_launcher_round.xml"
 
-          # Kotlin Activity
           cat > "$PROJECT/app/src/main/java/com/sinopec/xn/MainActivity.kt" <<'EOF'
           package com.sinopec.xn
 
@@ -227,15 +206,7 @@ jobs:
           import android.content.Intent
           import android.net.Uri
           import android.os.Bundle
-          import android.webkit.CookieManager
-          import android.webkit.DownloadListener
-          import android.webkit.GeolocationPermissions
-          import android.webkit.URLUtil
-          import android.webkit.WebChromeClient
-          import android.webkit.WebResourceRequest
-          import android.webkit.WebSettings
-          import android.webkit.WebView
-          import android.webkit.WebViewClient
+          import android.webkit.*
           import androidx.activity.ComponentActivity
           import androidx.activity.OnBackPressedCallback
           import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
@@ -271,27 +242,22 @@ jobs:
                   CookieManager.getInstance().setAcceptThirdPartyCookies(webView, true)
 
                   webView.webViewClient = object : WebViewClient() {
-                      override fun shouldOverrideUrlLoading(
-                          view: WebView?, request: WebResourceRequest?
-                      ): Boolean {
+                      override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
                           val u = request?.url ?: return false
                           val scheme = u.scheme ?: "https"
                           if (scheme in listOf("tel","sms","mailto","geo","whatsapp","intent")) {
-                              try { startActivity(Intent(Intent.ACTION_VIEW, u)) }
-                              catch (_: ActivityNotFoundException) {}
+                              try { startActivity(Intent(Intent.ACTION_VIEW, u)) } catch (_: ActivityNotFoundException) {}
                               return true
                           }
                           return false
                       }
-                      override fun onPageFinished(view: WebView?, url: String?) {
-                          swipe.isRefreshing = false
-                      }
+                      override fun onPageFinished(view: WebView?, url: String?) { swipe.isRefreshing = false }
                   }
 
                   webView.webChromeClient = object : WebChromeClient() {
-                      override fun onGeolocationPermissionsShowPrompt(
-                          origin: String?, callback: GeolocationPermissions.Callback?
-                      ) { callback?.invoke(origin, true, false) }
+                      override fun onGeolocationPermissionsShowPrompt(origin: String?, cb: GeolocationPermissions.Callback?) {
+                          cb?.invoke(origin, true, false)
+                      }
                   }
 
                   swipe.setOnRefreshListener { webView.reload() }
@@ -321,3 +287,41 @@ jobs:
               override fun onDestroy() { webView.destroy(); super.onDestroy() }
           }
           EOF
+
+      # ---------- GRADLE ----------
+      - name: Install Gradle 8.7 and create wrapper
+        run: |
+          wget -q https://services.gradle.org/distributions/gradle-8.7-bin.zip -O /tmp/gradle.zip
+          unzip -q /tmp/gradle.zip -d $HOME
+          echo "$HOME/gradle-8.7/bin" >> $GITHUB_PATH
+          export PATH="$HOME/gradle-8.7/bin:$PATH"
+          cd SinopecXN_WebView
+          gradle wrapper --gradle-version 8.7
+          chmod +x ./gradlew
+
+      - name: Setup Gradle cache
+        uses: gradle/actions/setup-gradle@v4
+
+      # ---------- BUILD ----------
+      - name: Build Debug APK
+        working-directory: SinopecXN_WebView
+        run: ./gradlew --no-daemon assembleDebug
+
+      - name: Build Release APK (unsigned, optional)
+        working-directory: SinopecXN_WebView
+        run: ./gradlew --no-daemon assembleRelease
+
+      # ---------- ARTIFACTS ----------
+      - name: Upload Debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: SinopecXN-APK
+          path: SinopecXN_WebView/app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 7
+
+      - name: Upload Release APK (unsigned)
+        uses: actions/upload-artifact@v4
+        with:
+          name: SinopecXN-Release-unsigned
+          path: SinopecXN_WebView/app/build/outputs/apk/release/app-release-unsigned.apk
+          retention-days: 7
