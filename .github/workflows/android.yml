@@ -1,4 +1,4 @@
-name: Build Android APK (Debug only)
+name: Build Android APK
 
 on:
   workflow_dispatch:
@@ -19,15 +19,15 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Install platform & build-tools
+      - name: Install Android platform & tools
         run: |
           sdkmanager --install "platforms;android-34" "build-tools;34.0.0" "platform-tools"
           yes | sdkmanager --licenses
 
-      # --- Create project in one go ---
       - name: Create Android project
         run: |
           mkdir -p app/src/main/java/com/sinopec/xn app/src/main/res/{layout,values,xml,drawable,mipmap-anydpi-v26}
+
           cat > settings.gradle <<'EOF'
           rootProject.name = "SinopecXN_WebView"
           include(":app")
@@ -100,7 +100,6 @@ jobs:
           wget -q https://services.gradle.org/distributions/gradle-8.7-bin.zip -O /tmp/gradle.zip
           unzip -q /tmp/gradle.zip -d $HOME
           echo "$HOME/gradle-8.7/bin" >> $GITHUB_PATH
-          gradle -v
 
       - name: Build debug APK
         run: |
