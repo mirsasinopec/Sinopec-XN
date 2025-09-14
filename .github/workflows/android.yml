@@ -1,327 +1,194 @@
-name: Build Android APK
+name: Build Android APK (Debug only)
 
 on:
   workflow_dispatch:
-  push:
-    branches: [ "main" ]
 
 jobs:
   build:
     runs-on: ubuntu-latest
-
     steps:
-      # repo checkout (no other files required)
-      - name: Checkout
+      - name: Checkout (repo can be empty)
         uses: actions/checkout@v4
 
-      # Java 17 for Android Gradle Plugin 8.x
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
 
-      # Android SDK + accept licenses
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
 
-      # Install explicit platform + build-tools (shows progress in logs)
-      - name: Install Android platform & build-tools (34)
+      - name: Install platform & build-tools
         run: |
           sdkmanager --install "platforms;android-34" "build-tools;34.0.0" "platform-tools"
           yes | sdkmanager --licenses
 
-      # ---------- CREATE PROJECT FROM SCRATCH ----------
-      - name: Create Android WebView project (SinopecXN_WebView)
+      # --- Create the project (loads your Netlify site in WebView) ---
+      - name: Create Android project
         run: |
           set -eux
-          PROJECT="SinopecXN_WebView"
-          mkdir -p "$PROJECT"/{app/src/main/{res/{layout,values,xml,drawable,mipmap-anydpi-v26},java/com/sinopec/xn}}
-          
-          cat > "$PROJECT/settings.gradle" <<'EOF'
-          pluginManagement {
-              repositories { google(); mavenCentral(); gradlePluginPortal() }
-          }
+          P="SinopecXN_WebView"
+          mkdir -p $P/app/src/main/{res/{layout,values,xml,drawable,mipmap-anydpi-v26},java/com/sinopec/xn}
+          cat > $P/settings.gradle <<'EOF'
+          pluginManagement { repositories { google(); mavenCentral(); gradlePluginPortal() } }
           dependencyResolutionManagement {
-              repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
-              repositories { google(); mavenCentral() }
+            repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+            repositories { google(); mavenCentral() }
           }
-          rootProject.name = "SinopecXN_WebView"
-          include(":app")
+          rootProject.name = "SinopecXN_WebView"; include(":app")
           EOF
-
-          cat > "$PROJECT/build.gradle.kts" <<'EOF'
+          cat > $P/build.gradle.kts <<'EOF'
           plugins {
-              id("com.android.application") version "8.5.2" apply false
-              id("org.jetbrains.kotlin.android") version "1.9.24" apply false
+            id("com.android.application") version "8.5.2" apply false
+            id("org.jetbrains.kotlin.android") version "1.9.24" apply false
           }
           EOF
-
-          cat > "$PROJECT/gradle.properties" <<'EOF'
+          cat > $P/gradle.properties <<'EOF'
           org.gradle.jvmargs=-Xmx4096m -Dkotlin.daemon.jvm.options=-Xmx2048m
           android.useAndroidX=true
           android.nonTransitiveRClass=true
           kotlin.code.style=official
           EOF
-
-          cat > "$PROJECT/app/build.gradle.kts" <<'EOF'
-          plugins {
-              id("com.android.application")
-              id("org.jetbrains.kotlin.android")
-          }
-
+          cat > $P/app/build.gradle.kts <<'EOF'
+          plugins { id("com.android.application"); id("org.jetbrains.kotlin.android") }
           android {
-              namespace = "com.sinopec.xn"
-              compileSdk = 34
-
-              defaultConfig {
-                  applicationId = "com.sinopec.xn"
-                  minSdk = 24
-                  targetSdk = 34
-                  versionCode = 1
-                  versionName = "1.0"
-              }
-
-              buildTypes {
-                  release {
-                      isMinifyEnabled = false
-                      proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-                  }
-                  debug { isMinifyEnabled = false }
-              }
-
-              compileOptions {
-                  sourceCompatibility = JavaVersion.VERSION_17
-                  targetCompatibility = JavaVersion.VERSION_17
-              }
-              kotlinOptions { jvmTarget = "17" }
-
-              packaging { resources.excludes.add("META-INF/*") }
+            namespace = "com.sinopec.xn"; compileSdk = 34
+            defaultConfig { applicationId = "com.sinopec.xn"; minSdk = 24; targetSdk = 34; versionCode = 1; versionName = "1.0" }
+            buildTypes {
+              debug { isMinifyEnabled = false }
+              release { isMinifyEnabled = false; proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro") }
+            }
+            compileOptions { sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17 }
+            kotlinOptions { jvmTarget = "17" }
           }
-
           dependencies {
-              implementation("androidx.appcompat:appcompat:1.7.0")
-              implementation("com.google.android.material:material:1.12.0")
-              implementation("androidx.swiperefreshlayout:swiperefreshlayout:1.1.0")
+            implementation("androidx.appcompat:appcompat:1.7.0")
+            implementation("com.google.android.material:material:1.12.0")
+            implementation("androidx.swiperefreshlayout:swiperefreshlayout:1.1.0")
           }
           EOF
-
-          echo "## Keep WebView defaults" > "$PROJECT/app/proguard-rules.pro"
-
-          cat > "$PROJECT/app/src/main/AndroidManifest.xml" <<'EOF'
+          echo "## no proguard rules needed" > $P/app/proguard-rules.pro
+          cat > $P/app/src/main/AndroidManifest.xml <<'EOF'
           <?xml version="1.0" encoding="utf-8"?>
           <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-              <uses-permission android:name="android.permission.INTERNET" />
-              <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="28" />
-              <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
-              <application
-                  android:allowBackup="true"
-                  android:icon="@mipmap/ic_launcher"
-                  android:label="Sinopec XN"
-                  android:roundIcon="@mipmap/ic_launcher_round"
-                  android:supportsRtl="true"
-                  android:theme="@style/Theme.MaterialComponents.DayNight.NoActionBar"
-                  android:networkSecurityConfig="@xml/network_security_config">
-                  <activity
-                      android:name=".MainActivity"
-                      android:exported="true"
-                      android:configChanges="orientation|keyboardHidden|screenSize"
-                      android:screenOrientation="unspecified">
-                      <intent-filter>
-                          <action android:name="android.intent.action.MAIN" />
-                          <category android:name="android.intent.category.LAUNCHER" />
-                      </intent-filter>
-                  </activity>
-              </application>
+            <uses-permission android:name="android.permission.INTERNET"/>
+            <application android:allowBackup="true" android:icon="@mipmap/ic_launcher"
+              android:label="Sinopec XN" android:roundIcon="@mipmap/ic_launcher_round"
+              android:supportsRtl="true" android:theme="@style/Theme.MaterialComponents.DayNight.NoActionBar"
+              android:networkSecurityConfig="@xml/network_security_config">
+              <activity android:name=".MainActivity" android:exported="true"
+                android:configChanges="orientation|keyboardHidden|screenSize">
+                <intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter>
+              </activity>
+            </application>
           </manifest>
           EOF
-
-          cat > "$PROJECT/app/src/main/res/values/strings.xml" <<'EOF'
+          cat > $P/app/src/main/res/values/strings.xml <<'EOF'
           <resources>
-              <string name="app_name">Sinopec XN</string>
-              <string name="url_root">https://employeesxn.netlify.app/</string>
+            <string name="app_name">Sinopec XN</string>
+            <string name="url_root">https://employeesxn.netlify.app/</string>
           </resources>
           EOF
-
-          cat > "$PROJECT/app/src/main/res/values/colors.xml" <<'EOF'
-          <resources>
-              <color name="ic_bg">#111111</color>
-              <color name="ic_fg">#EF4444</color>
-          </resources>
-          EOF
-
-          cat > "$PROJECT/app/src/main/res/layout/activity_main.xml" <<'EOF'
+          cat > $P/app/src/main/res/layout/activity_main.xml <<'EOF'
           <?xml version="1.0" encoding="utf-8"?>
-          <androidx.swiperefreshlayout.widget.SwipeRefreshLayout
-              xmlns:android="http://schemas.android.com/apk/res/android"
-              android:id="@+id/swipe"
-              android:layout_width="match_parent"
-              android:layout_height="match_parent">
-              <WebView
-                  android:id="@+id/web"
-                  android:layout_width="match_parent"
-                  android:layout_height="match_parent" />
+          <androidx.swiperefreshlayout.widget.SwipeRefreshLayout xmlns:android="http://schemas.android.com/apk/res/android"
+            android:id="@+id/swipe" android:layout_width="match_parent" android:layout_height="match_parent">
+            <WebView android:id="@+id/web" android:layout_width="match_parent" android:layout_height="match_parent"/>
           </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
           EOF
-
-          cat > "$PROJECT/app/src/main/res/xml/network_security_config.xml" <<'EOF'
+          cat > $P/app/src/main/res/xml/network_security_config.xml <<'EOF'
           <?xml version="1.0" encoding="utf-8"?>
-          <network-security-config>
-              <base-config cleartextTrafficPermitted="false">
-                  <trust-anchors>
-                      <certificates src="system" />
-                      <certificates src="user" />
-                  </trust-anchors>
-              </base-config>
-          </network-security-config>
+          <network-security-config><base-config cleartextTrafficPermitted="false">
+            <trust-anchors><certificates src="system"/><certificates src="user"/></trust-anchors>
+          </base-config></network-security-config>
           EOF
-
-          cat > "$PROJECT/app/src/main/res/drawable/ic_logo.xml" <<'EOF'
+          cat > $P/app/src/main/res/drawable/ic_logo.xml <<'EOF'
           <?xml version="1.0" encoding="utf-8"?>
-          <vector xmlns:android="http://schemas.android.com/apk/res/android"
-              android:width="108dp" android:height="108dp"
-              android:viewportWidth="108" android:viewportHeight="108">
-              <path android:fillColor="@color/ic_fg"
-                    android:pathData="M54,18 L78,42 L63,42 L63,90 L45,90 L45,42 L30,42 Z"/>
+          <vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="108dp" android:height="108dp" android:viewportWidth="108" android:viewportHeight="108">
+            <path android:fillColor="#EF4444" android:pathData="M54,18 L78,42 L63,42 L63,90 L45,90 L45,42 L30,42 Z"/>
           </vector>
           EOF
-
-          cat > "$PROJECT/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml" <<'EOF'
+          cat > $P/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml <<'EOF'
           <?xml version="1.0" encoding="utf-8"?>
           <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
-              <background android:drawable="@color/ic_bg"/>
-              <foreground android:drawable="@drawable/ic_logo"/>
-              <monochrome android:drawable="@drawable/ic_logo"/>
+            <background android:drawable="@android:color/black"/>
+            <foreground android:drawable="@drawable/ic_logo"/>
           </adaptive-icon>
           EOF
-          cp "$PROJECT/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml" \
-             "$PROJECT/app/src/main/res/mipmap-anydpi-v26/ic_launcher_round.xml"
-
-          cat > "$PROJECT/app/src/main/java/com/sinopec/xn/MainActivity.kt" <<'EOF'
+          cp $P/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml $P/app/src/main/res/mipmap-anydpi-v26/ic_launcher_round.xml
+          cat > $P/app/src/main/java/com/sinopec/xn/MainActivity.kt <<'EOF'
           package com.sinopec.xn
-
           import android.app.DownloadManager
-          import android.content.ActivityNotFoundException
-          import android.content.Context
-          import android.content.Intent
+          import android.content.*
           import android.net.Uri
           import android.os.Bundle
           import android.webkit.*
           import androidx.activity.ComponentActivity
           import androidx.activity.OnBackPressedCallback
           import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
-
           class MainActivity : ComponentActivity() {
-              private lateinit var webView: WebView
-              private lateinit var swipe: SwipeRefreshLayout
-
-              override fun onCreate(savedInstanceState: Bundle?) {
-                  super.onCreate(savedInstanceState)
-                  setContentView(R.layout.activity_main)
-
-                  swipe = findViewById(R.id.swipe)
-                  webView = findViewById(R.id.web)
-
-                  val url = getString(R.string.url_root)
-
-                  with(webView.settings) {
-                      javaScriptEnabled = true
-                      domStorageEnabled = true
-                      databaseEnabled = true
-                      loadsImagesAutomatically = true
-                      cacheMode = WebSettings.LOAD_DEFAULT
-                      allowFileAccess = true
-                      allowContentAccess = true
-                      mediaPlaybackRequiresUserGesture = true
-                      builtInZoomControls = false
-                      displayZoomControls = false
-                      userAgentString = userAgentString + " SinopecXN/1.0"
-                  }
-
-                  CookieManager.getInstance().setAcceptCookie(true)
-                  CookieManager.getInstance().setAcceptThirdPartyCookies(webView, true)
-
-                  webView.webViewClient = object : WebViewClient() {
-                      override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
-                          val u = request?.url ?: return false
-                          val scheme = u.scheme ?: "https"
-                          if (scheme in listOf("tel","sms","mailto","geo","whatsapp","intent")) {
-                              try { startActivity(Intent(Intent.ACTION_VIEW, u)) } catch (_: ActivityNotFoundException) {}
-                              return true
-                          }
-                          return false
-                      }
-                      override fun onPageFinished(view: WebView?, url: String?) { swipe.isRefreshing = false }
-                  }
-
-                  webView.webChromeClient = object : WebChromeClient() {
-                      override fun onGeolocationPermissionsShowPrompt(origin: String?, cb: GeolocationPermissions.Callback?) {
-                          cb?.invoke(origin, true, false)
-                      }
-                  }
-
-                  swipe.setOnRefreshListener { webView.reload() }
-
-                  webView.setDownloadListener(DownloadListener { urlStr, userAgent, contentDisposition, mimeType, _ ->
-                      val filename = URLUtil.guessFileName(urlStr, contentDisposition, mimeType)
-                      val req = DownloadManager.Request(Uri.parse(urlStr)).apply {
-                          setMimeType(mimeType)
-                          addRequestHeader("User-Agent", userAgent)
-                          setTitle(filename)
-                          setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
-                      }
-                      (getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager).enqueue(req)
-                  })
-
-                  webView.loadUrl(url)
-
-                  onBackPressedDispatcher.addCallback(this, object: OnBackPressedCallback(true) {
-                      override fun handleOnBackPressed() {
-                          if (webView.canGoBack()) webView.goBack() else finish()
-                      }
-                  })
+            private lateinit var webView: WebView; private lateinit var swipe: SwipeRefreshLayout
+            override fun onCreate(savedInstanceState: Bundle?) {
+              super.onCreate(savedInstanceState); setContentView(R.layout.activity_main)
+              swipe = findViewById(R.id.swipe); webView = findViewById(R.id.web)
+              with(webView.settings) {
+                javaScriptEnabled = true; domStorageEnabled = true; databaseEnabled = true
+                loadsImagesAutomatically = true; cacheMode = WebSettings.LOAD_DEFAULT
+                allowFileAccess = true; allowContentAccess = true; mediaPlaybackRequiresUserGesture = true
+                builtInZoomControls = false; displayZoomControls = false
+                userAgentString = userAgentString + " SinopecXN/1.0"
               }
-
-              override fun onResume() { super.onResume(); webView.onResume() }
-              override fun onPause() { webView.onPause(); super.onPause() }
-              override fun onDestroy() { webView.destroy(); super.onDestroy() }
+              CookieManager.getInstance().setAcceptCookie(true)
+              CookieManager.getInstance().setAcceptThirdPartyCookies(webView, true)
+              webView.webViewClient = object : WebViewClient() {
+                override fun shouldOverrideUrlLoading(v: WebView?, r: WebResourceRequest?): Boolean {
+                  val u = r?.url ?: return false; val s = u.scheme ?: "https"
+                  if (s in listOf("tel","sms","mailto","geo","whatsapp","intent")) {
+                    try { startActivity(Intent(Intent.ACTION_VIEW, u)) } catch (_: ActivityNotFoundException) {}
+                    return true
+                  }
+                  return false
+                }
+                override fun onPageFinished(v: WebView?, url: String?) { swipe.isRefreshing = false }
+              }
+              webView.webChromeClient = object : WebChromeClient() {
+                override fun onGeolocationPermissionsShowPrompt(o: String?, c: GeolocationPermissions.Callback?) { c?.invoke(o,true,false) }
+              }
+              swipe.setOnRefreshListener { webView.reload() }
+              webView.setDownloadListener { url, ua, cd, mime, _ ->
+                val name = URLUtil.guessFileName(url, cd, mime)
+                val req = DownloadManager.Request(Uri.parse(url)).apply {
+                  setMimeType(mime); addRequestHeader("User-Agent", ua); setTitle(name)
+                  setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
+                }
+                (getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager).enqueue(req)
+              }
+              webView.loadUrl(getString(R.string.url_root))
+              onBackPressedDispatcher.addCallback(this, object: OnBackPressedCallback(true) {
+                override fun handleOnBackPressed() { if (webView.canGoBack()) webView.goBack() else finish() }
+              })
+            }
+            override fun onResume() { super.onResume(); webView.onResume() }
+            override fun onPause() { webView.onPause(); super.onPause() }
+            override fun onDestroy() { webView.destroy(); super.onDestroy() }
           }
           EOF
 
-      # ---------- GRADLE ----------
-      - name: Install Gradle 8.7 and create wrapper
+      - name: Install Gradle 8.7 & wrapper
         run: |
           wget -q https://services.gradle.org/distributions/gradle-8.7-bin.zip -O /tmp/gradle.zip
           unzip -q /tmp/gradle.zip -d $HOME
           echo "$HOME/gradle-8.7/bin" >> $GITHUB_PATH
-          export PATH="$HOME/gradle-8.7/bin:$PATH"
-          cd SinopecXN_WebView
-          gradle wrapper --gradle-version 8.7
-          chmod +x ./gradlew
+          cd SinopecXN_WebView && gradle wrapper --gradle-version 8.7 && chmod +x ./gradlew
 
-      - name: Setup Gradle cache
-        uses: gradle/actions/setup-gradle@v4
-
-      # ---------- BUILD ----------
-      - name: Build Debug APK
+      - name: Build debug APK
         working-directory: SinopecXN_WebView
         run: ./gradlew --no-daemon assembleDebug
 
-      - name: Build Release APK (unsigned, optional)
-        working-directory: SinopecXN_WebView
-        run: ./gradlew --no-daemon assembleRelease
-
-      # ---------- ARTIFACTS ----------
-      - name: Upload Debug APK
+      - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: SinopecXN-APK
           path: SinopecXN_WebView/app/build/outputs/apk/debug/app-debug.apk
-          retention-days: 7
-
-      - name: Upload Release APK (unsigned)
-        uses: actions/upload-artifact@v4
-        with:
-          name: SinopecXN-Release-unsigned
-          path: SinopecXN_WebView/app/build/outputs/apk/release/app-release-unsigned.apk
           retention-days: 7
